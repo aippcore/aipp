@@ -1,0 +1,5 @@
+- "traefik.enable=true"
+- "traefik.http.routers.aipp.rule=Host(`agentic.aipp.dev`)"
+- "traefik.http.routers.aipp.entrypoints=websecure"
+- "traefik.http.routers.aipp.tls.certresolver=letsencrypt"
+- "traefik.http.services.aipp.loadbalancer.server.port=8000"
