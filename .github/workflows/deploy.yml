@@ -16,6 +16,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 2222
+          fingerprint: skip
           script: |
             cd /root/aipp
             git pull origin main
