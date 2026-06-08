@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: aipp-db
     environment:
-      POSTGRES_USER: aipp
-      POSTGRES_PASSWORD: Herm3sAIPP2026!
-      POSTGRES_DB: aipp
+      POSTGRES_USER: ${POSTGRES_USER:-aipp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-aipp}
     volumes:
       - aipp_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,11 +20,11 @@ services:
   redis:
     image: redis:7.4.9-alpine
     container_name: aipp-redis
-    command: redis-server --requirepass 'Herm3s#AIPP2026!' --bind 0.0.0.0 --appendonly yes --appendfsync everysec --save '3600 1 300 100 60 10000'
+    command: redis-server --requirepass '${REDIS_PASSWORD}' --bind 0.0.0.0 --appendonly yes --appendfsync everysec --save '3600 1 300 100 60 10000'
     volumes:
       - aipp_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "Herm3s#AIPP2026!", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,8 +37,8 @@ services:
       context: ./satsgate
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://aipp:Herm3sAIPP2026!@postgres:5432/aipp
-      REDIS_URL: redis://:Herm3s%23AIPP2026!@redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aipp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aipp}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       ADMIN_TOKEN: ${AIPP_ADMIN_TOKEN}
       DEV_MODE: "false"
       SATSGATE_WALLET_MODE: lnaddr
