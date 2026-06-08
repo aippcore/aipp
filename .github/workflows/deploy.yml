@@ -16,7 +16,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 2222
-          fingerprint: SHA256:ODSC8gBk91J4Ahi/+A6mmme7BiLvPshIu0jKOvXGJcg
+          
           script: |
             cd /root/aipp
             git pull origin main
