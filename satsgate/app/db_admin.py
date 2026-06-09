@@ -108,25 +108,29 @@ async def operator_overview(session: AsyncSession, *, since_ts: int) -> dict:
     
     daily_topups_query = await session.execute(
         text("""
-            SELECT to_char(to_timestamp(settled_at), 'YYYY-MM-DD') as day, SUM(sats) as sats_sum
+            SELECT settled_at, sats
             FROM topups 
             WHERE status='settled' AND settled_at >= :ts
-            GROUP BY day
-            ORDER BY day ASC
         """), {"ts": seven_days_ago}
     )
-    daily_topups = [dict(row._mapping) for row in daily_topups_query]
+    daily_topups_dict = {}
+    for row in daily_topups_query:
+        day = datetime.fromtimestamp(row.settled_at, tz=timezone.utc).strftime('%Y-%m-%d')
+        daily_topups_dict[day] = daily_topups_dict.get(day, 0) + row.sats
+    daily_topups = [{"day": k, "sats_sum": v} for k, v in sorted(daily_topups_dict.items())]
 
     daily_verifications_query = await session.execute(
         text("""
-            SELECT to_char(to_timestamp(created_at), 'YYYY-MM-DD') as day, COUNT(*) as count
+            SELECT created_at
             FROM ledger 
             WHERE reason='paywall_verify' AND created_at >= :ts
-            GROUP BY day
-            ORDER BY day ASC
         """), {"ts": seven_days_ago}
     )
-    daily_verifications = [dict(row._mapping) for row in daily_verifications_query]
+    daily_verifications_dict = {}
+    for row in daily_verifications_query:
+        day = datetime.fromtimestamp(row.created_at, tz=timezone.utc).strftime('%Y-%m-%d')
+        daily_verifications_dict[day] = daily_verifications_dict.get(day, 0) + 1
+    daily_verifications = [{"day": k, "count": v} for k, v in sorted(daily_verifications_dict.items())]
 
     return {
         "since_ts": since_ts,

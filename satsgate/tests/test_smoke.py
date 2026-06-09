@@ -8,41 +8,10 @@ from pathlib import Path
 import pytest
 
 
-def _fresh_import_app(tmp_path: Path):
-    """Import the FastAPI app with a clean module cache.
-
-    Important: satsgate loads config at import-time, so we set env vars before importing.
-    """
-
-    # Ensure repository root is importable as a module root.
-    repo_root = Path(__file__).resolve().parents[1]
-    if str(repo_root) not in sys.path:
-        sys.path.insert(0, str(repo_root))
-
-    # Configure env for a fully-local test run
-    os.environ["SATSGATE_WALLET_MODE"] = "mock"
-    os.environ["SATSGATE_DEV_MODE"] = "1"
-    os.environ["SATSGATE_RL_ENABLED"] = "0"
-    os.environ["SATSGATE_MACAROON_SECRET"] = "test-secret"
-    os.environ["SATSGATE_DB_PATH"] = str(tmp_path / "satsgate_test.sqlite3")
-
-    # Enable operator endpoints for tests
-    os.environ["SATSGATE_ADMIN_TOKEN"] = "test-admin-token"
-
-    # Ensure a clean import (config is loaded at import time)
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            sys.modules.pop(name, None)
-
-    m = importlib.import_module("app.main")
-    return m.app
-
-
 @pytest.fixture()
 def client(tmp_path):
     from fastapi.testclient import TestClient
-
-    app = _fresh_import_app(tmp_path)
+    from app.main import app
     with TestClient(app) as c:
         yield c
 
@@ -146,22 +115,32 @@ def test_paywall_verify_is_idempotent_per_payment_hash(client):
     # Verify once => charged
     r3 = client.post(
         "/v1/paywall/verify",
-        headers={"X-Api-Key": api_key, "Authorization": auth},
+        headers={"X-Api-Key": api_key, "Authorization": auth, "Idempotency-Key": "test-key-1"},
         json={"expected_resource": "demo/test", "cost_credits": 1},
     )
     assert r3.status_code == 200
     v1 = r3.json()
     assert v1["charged_credits"] == 1
 
-    # Verify again with same payment_hash => not charged
+    # Verify again with same idempotency key => cached response (charged_credits = 1)
     r4 = client.post(
         "/v1/paywall/verify",
-        headers={"X-Api-Key": api_key, "Authorization": auth},
+        headers={"X-Api-Key": api_key, "Authorization": auth, "Idempotency-Key": "test-key-1"},
         json={"expected_resource": "demo/test", "cost_credits": 1},
     )
     assert r4.status_code == 200
     v2 = r4.json()
-    assert v2["charged_credits"] == 0
+    assert v2["charged_credits"] == 1
+
+    # Verify again with different idempotency key but same payment_hash => DB idempotency (charged_credits = 0)
+    r5 = client.post(
+        "/v1/paywall/verify",
+        headers={"X-Api-Key": api_key, "Authorization": auth, "Idempotency-Key": "test-key-2"},
+        json={"expected_resource": "demo/test", "cost_credits": 1},
+    )
+    assert r5.status_code == 200
+    v3 = r5.json()
+    assert v3["charged_credits"] == 0
 
     bal_after = client.get("/v1/balance", headers={"X-Api-Key": api_key}).json()["credits"]
     assert bal_after == bal_before - 1
@@ -187,7 +166,7 @@ def test_forecast_has_recommendation_keys(client):
     auth = _auth(ch["macaroon"], pre)
     client.post(
         "/v1/paywall/verify",
-        headers={"X-Api-Key": api_key, "Authorization": auth},
+        headers={"X-Api-Key": api_key, "Authorization": auth, "Idempotency-Key": "test-key-forecast"},
         json={"expected_resource": "demo/test", "cost_credits": 1},
     )
 

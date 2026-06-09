@@ -39,8 +39,7 @@ from .admin import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Database initialization is now handled by Alembic migrations
     yield
 
 app = FastAPI(title="satsgate", version="0.2.0", lifespan=lifespan)
@@ -187,7 +186,9 @@ async def v1_plans(session: AsyncSession = Depends(get_db)) -> dict:
 
 
 @app.get("/v1/balance")
-async def v1_balance(x_api_key: str | None = Header(default=None, alias="X-Api-Key")):
+async def v1_balance(x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
+):
     client = await _get_client_from_api_key(session, x_api_key)
     if not client:
         return JSONResponse(status_code=401, content={"ok": False, "error": "invalid_api_key"})
@@ -195,7 +196,9 @@ async def v1_balance(x_api_key: str | None = Header(default=None, alias="X-Api-K
 
 
 @app.get("/v1/client")
-async def v1_client(x_api_key: str | None = Header(default=None, alias="X-Api-Key")):
+async def v1_client(x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
+):
     client = await _get_client_from_api_key(session, x_api_key)
     if not client:
         return JSONResponse(status_code=401, content={"ok": False, "error": "invalid_api_key"})
@@ -212,6 +215,7 @@ async def v1_client(x_api_key: str | None = Header(default=None, alias="X-Api-Ke
 async def v1_ledger(x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
     limit: int = 50,
     before_id: int | None = None,
+    session: AsyncSession = Depends(get_db),
 ):
     """Return this client's verification ledger entries (credits)."""
 
@@ -240,6 +244,7 @@ async def v1_ledger(x_api_key: str | None = Header(default=None, alias="X-Api-Ke
 @app.get("/v1/usage/summary")
 async def v1_usage_summary(x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
     since_hours: int = 24,
+    session: AsyncSession = Depends(get_db),
 ):
     """Usage summary over a time window (default: last 24h)."""
 
@@ -264,6 +269,7 @@ async def v1_usage_summary(x_api_key: str | None = Header(default=None, alias="X
 @app.get("/v1/usage/daily")
 async def v1_usage_daily(x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
     days: int = 30,
+    session: AsyncSession = Depends(get_db),
 ):
     """Daily (UTC) series for charts and automated top-ups."""
 
@@ -289,6 +295,7 @@ async def v1_usage_forecast(x_api_key: str | None = Header(default=None, alias="
     buffer_days: int = 7,
     max_topups: int = 3,
     trigger_hours: int = 24,
+    session: AsyncSession = Depends(get_db),
 ):
     """Simple forecast + purchase recommendation.
 
@@ -421,6 +428,7 @@ class ClientPayeeIn(BaseModel):
 @app.post("/v1/client/payee")
 async def v1_client_set_payee(body: ClientPayeeIn,
     x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
 ):
     client = await _get_client_from_api_key(session, x_api_key)
     if not client:
@@ -446,6 +454,7 @@ async def v1_client_set_payee(body: ClientPayeeIn,
 @app.post("/v1/spend")
 async def v1_spend(request: Request, x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
     cost: int = 1,
+    session: AsyncSession = Depends(get_db),
 ):
     client = await _get_client_from_api_key(session, x_api_key)
     if not client:
@@ -481,6 +490,7 @@ async def v1_spend(request: Request, x_api_key: str | None = Header(default=None
 async def v1_topup(plan_id: str,
     authorization: str | None = Header(default=None),
     x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
 ):
     """Buy prepaid payment verifications (credits) by plan.
 
@@ -644,6 +654,7 @@ def _get_payee_wallet(lightning_address: str) -> LightningAddressWallet:
 @app.post("/v1/paywall/challenge")
 async def v1_paywall_challenge(body: PaywallChallengeIn,
     x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
 ):
     """Generate an L402 challenge for a resource.
 
@@ -734,6 +745,7 @@ async def v1_paywall_challenge(body: PaywallChallengeIn,
 async def v1_paywall_verify(request: Request, body: PaywallVerifyIn,
     authorization: str | None = Header(default=None),
     x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+    session: AsyncSession = Depends(get_db),
 ):
     """Verify an L402 Authorization and spend payment verifications (credits) (once per payment_hash).
 
