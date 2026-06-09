@@ -22,7 +22,6 @@ from .database import get_db, engine
 from .models import Base
 from contextlib import asynccontextmanager
 from .rate_limit import check_rate_limit, check_daily_limit, increment_daily_spend, check_idempotency, set_idempotency
-from .rate_limit import RateLimiter
 from . import db_verify
 from .l402 import (
     L402Error,
@@ -76,9 +75,7 @@ try:
 except Exception as e:  # noqa: BLE001
     raise RuntimeError(f"Failed to initialize DB at {config.DB_PATH}: {e}") from e
 
-# Rate limiters
-RL_ANON = RateLimiter(window_seconds=config.RL_WINDOW_SECONDS, max_requests=config.RL_MAX_ANON)
-RL_AUTH = RateLimiter(window_seconds=config.RL_WINDOW_SECONDS, max_requests=config.RL_MAX_AUTH)
+# Rate limiters have been migrated to Redis (see rate_limit.py)
 
 
 async def _get_client_from_api_key(session: AsyncSession, x_api_key: str | None) -> db.Client | None:
