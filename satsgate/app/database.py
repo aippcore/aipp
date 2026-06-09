@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://aipp:Herm3sAIPP2026!@localhost:5432/aipp")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://aipp:Herm3sAIPP2026%21@postgres:5432/aipp")
 
 # Fallback for old SQLite path just in case
 if DATABASE_URL.startswith("sqlite"):
